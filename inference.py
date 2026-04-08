@@ -38,7 +38,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 # Optional - if you use from_docker_image():
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 
-ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
+ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
 BENCHMARK = "cal_triage_env"
 TASKS = ["easy", "medium", "hard"]
 MAX_STEPS_MAP = {"easy": 5, "medium": 8, "hard": 12}

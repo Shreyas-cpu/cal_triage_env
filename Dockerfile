@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git@v0.2.3" \
     "fastapi>=0.115.0" \
     "pydantic>=2.0.0" \
-    "uvicorn>=0.24.0" \
+    "uvicorn[standard]>=0.24.0" \
     "requests>=2.31.0" \
     "websockets>=12.0"
 
@@ -40,11 +40,11 @@ COPY README.md ./
 COPY server/ ./server/
 
 # Expose the server port
-EXPOSE 7860
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Launch the FastAPI server
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]

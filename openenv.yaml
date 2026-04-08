@@ -3,4 +3,8 @@ name: cal_triage_env
 type: space
 runtime: fastapi
 app: server.app:app
-port: 7860
+port: 8000
+dependencies:
+  - uvicorn[standard]>=0.24.0
+  - requests>=2.31.0
+  - websockets>=12.0
