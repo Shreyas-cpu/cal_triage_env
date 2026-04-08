@@ -1,11 +1,3 @@
----
-title: CalTriage Env
-emoji: 🗓️
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 8000
----
 
 <p align="center">
   <img src="assets/infographic.png" alt="CalTriage-Env Infographic" width="100%" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
