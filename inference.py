@@ -31,10 +31,13 @@ from openai import OpenAI
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
 
-IMAGE_NAME = os.getenv("IMAGE_NAME")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy_key_for_fallback"
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Optional - if you use from_docker_image():
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+
 ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
 BENCHMARK = "cal_triage_env"
 TASKS = ["easy", "medium", "hard"]
@@ -465,7 +468,7 @@ async def ws_run_episode(
 
 async def main() -> None:
     """Run all tasks against the environment server."""
-    llm_client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
 
     # Build WebSocket URL from ENV_URL
     # http://localhost:8000 → ws://localhost:8000/ws
