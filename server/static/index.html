@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalTriage Premium AI Environment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="glass-header">
+            <div class="logo-area">
+                <div class="logo-icon"></div>
+                <h1>CalTriage <span>AI Agent</span></h1>
+            </div>
+            <div class="health-status">
+                <span class="pulse"></span> System Online
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel: Controls -->
+            <aside class="control-panel glass-panel">
+                <h2>Control Center</h2>
+                
+                <div class="control-section">
+                    <h3>Reset Environment</h3>
+                    <div class="input-group">
+                        <label>Task Difficulty</label>
+                        <select id="taskName">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="resetEnv()">Reset Schedule</button>
+                </div>
+
+                <div class="control-section">
+                    <h3>Take Action</h3>
+                    <div class="input-group">
+                        <label>Meeting ID</label>
+                        <input type="text" id="meetingId" placeholder="e.g. mtg_001">
+                    </div>
+                    <div class="input-group">
+                        <label>Action Type</label>
+                        <select id="actionType" onchange="toggleTimeInputs()">
+                            <option value="keep">Keep</option>
+                            <option value="reschedule">Reschedule</option>
+                            <option value="cancel">Cancel</option>
+                        </select>
+                    </div>
+                    <div class="time-inputs" id="timeInputs" style="display: none;">
+                        <div class="input-row">
+                            <div class="input-group">
+                                <label>New Hour (0-23)</label>
+                                <input type="number" id="newHour" min="0" max="23" value="9">
+                            </div>
+                            <div class="input-group">
+                                <label>Minute (0/30)</label>
+                                <select id="newMinute">
+                                    <option value="0">00</option>
+                                    <option value="30">30</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-action" onclick="stepEnv()">Submit Action</button>
+                </div>
+                
+                <div class="stats-box">
+                    <div class="stat">
+                        <span class="label">Conflicts</span>
+                        <span class="val" id="conflictCount">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="label">Reward</span>
+                        <span class="val" id="rewardScore">0.00</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Visualization -->
+            <main class="visualization-panel glass-panel">
+                <div id="toast" class="toast hidden"></div>
+                <div class="schedule-header">
+                    <h2>Live Schedule</h2>
+                    <span class="task-badge" id="currentTaskBadge">Task: easy</span>
+                </div>
+                
+                <div class="calendar-grid" id="calendarGrid">
+                    <!-- Javascript will render grid here -->
+                </div>
+
+                <div class="constraints-section">
+                    <h3>Active Constraints</h3>
+                    <ul id="constraintsList">
+                        <!-- JS injected -->
+                    </ul>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
