@@ -102,15 +102,15 @@ pip install -e .
 
 ### Launch the Environment
 ```bash
-# Start the OpenEnv server bridge
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+# Start the environment server
+uvicorn app:app --host 0.0.0.0 --port 7860
 ```
-Navigate to `http://localhost:8000/web` for the manual interaction interface.
+Navigate to `http://localhost:7860/web` for the manual interaction interface.
 
 ### Running with Docker (Isolated)
 ```bash
 docker build -t cal-triage-env .
-docker run -p 8000:8000 cal-triage-env
+docker run -p 7860:7860 cal-triage-env
 ```
 
 ---
