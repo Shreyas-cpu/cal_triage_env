@@ -1,4 +1,4 @@
-"""
+﻿"""
 Data models for the CalTriage Environment.
 
 CalTriage-Env is a real-world RL environment where an AI executive assistant
@@ -150,7 +150,7 @@ class CalAction(BaseModel):
     )
     new_start_minute: Optional[int] = Field(
         default=None,
-        description="New start minute — 0 or 30 (required if action_type is 'reschedule')",
+        description="New start minute  0 or 30 (required if action_type is 'reschedule')",
     )
 
     @field_validator("new_start_minute")
@@ -238,3 +238,4 @@ class CalState(BaseModel):
     task_name: str = Field(
         default="easy", description="Current task: easy, medium, or hard"
     )
+

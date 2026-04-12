@@ -1,8 +1,8 @@
-spec_version: 1
+﻿spec_version: 1
 name: cal_triage_env
 version: "1.0.0"
 description: >
-  CalTriage OpenEnv — Calendar conflict resolution environment where an RL
+  CalTriage OpenEnv  Calendar conflict resolution environment where an RL
   agent acts as an AI executive assistant. The agent must reschedule, cancel,
   or keep meetings to resolve all scheduling conflicts while respecting
   hard constraints (locked meetings) and soft constraints (preferred times).
@@ -55,11 +55,11 @@ action_space:
     description: What to do with the meeting
   new_start_hour:
     type: int
-    description: Required for reschedule — new hour (0-23)
+    description: Required for reschedule  new hour (0-23)
   new_start_minute:
     type: int
     values: [0, 30]
-    description: Required for reschedule — new minute (0 or 30)
+    description: Required for reschedule  new minute (0 or 30)
 
 observation_space:
   current_schedule:
@@ -96,3 +96,4 @@ endpoints:
   state: GET /state
   tasks: GET /tasks
   grade: POST /grade/{task_id}
+

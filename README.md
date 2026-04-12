@@ -1,8 +1,7 @@
----
+﻿---
 title: Cal Triage Env
-emoji: 🗓️
-colorFrom: blue
-colorTo: indigo
+colorFrom: red
+colorTo: yellow
 sdk: docker
 pinned: false
 license: bsd-3-clause
@@ -13,11 +12,7 @@ tags:
   - reinforcement-learning
 ---
 
-<p align="center">
-  <img src="assets/infographic.png" alt="CalTriage-Env Infographic" width="100%" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-</p>
-
-# 🗓️ CalTriage-Env: Smart Calendar Triage
+#  CalTriage-Env: Smart Calendar Triage
 
 <div align="center">
   
@@ -32,27 +27,27 @@ tags:
 
 ---
 
-## 🚀 The Challenge: Executive Assistant AI
+##  The Challenge: Executive Assistant AI
 
 **CalTriage-Env** is a state-of-the-art **Reinforcement Learning environment** built on the [OpenEnv](https://github.com/meta-pytorch/OpenEnv) framework. It simulates a highly practical, product-relevant domain: **Calendar / Scheduling Triage**. 
 
 As professionals, our schedules constantly devolve into chaotic, overlapping meeting blocks. We envision an AI Executive Assistant capable of elegantly resolving these overlaps while preserving an individual's intricate preferences.
 
-Unlike simple toy problems, CalTriage-Env thrusts your Agent into a daily schedule riddled with conflicting meetings. To win, the Agent must surgically act—choosing to **reschedule**, **cancel**, or **keep** meetings—all while strictly adhering to user constraints and maximizing schedule fluidity.
+Unlike simple toy problems, CalTriage-Env thrusts your Agent into a daily schedule riddled with conflicting meetings. To win, the Agent must surgically actchoosing to **reschedule**, **cancel**, or **keep** meetingsall while strictly adhering to user constraints and maximizing schedule fluidity.
 
 ---
 
-## 🌟 Key Features
+##  Key Features
 
-- **🧠 Real-World Complexity:** Handles both **Hard Constraints** (locked unmovable meetings) and **Soft Constraints** (preferred hours, lunch blocks, mental breaks).
-- **🕸️ Microservices Architecture:** The environment seamlessly integrates a WebSocket interface designed explicitly to securely wrap OpenEnv loops.
-- **⚡ Fast Local Execution:** Optimized `uvicorn` setup with a lightweight container layer for ultra-fast throughput during model testing.
-- **📈 Dynamic Difficulty:** Three progressive difficulty settings (Easy, Medium, and Hard) testing simple pairing logic to cascading multi-block constraints.
-- **🌐 HuggingFace Ready:** Packaged efficiently with OpenEnv specifications to run flawlessly on HF Spaces.
+- ** Real-World Complexity:** Handles both **Hard Constraints** (locked unmovable meetings) and **Soft Constraints** (preferred hours, lunch blocks, mental breaks).
+- ** Microservices Architecture:** The environment seamlessly integrates a WebSocket interface designed explicitly to securely wrap OpenEnv loops.
+- ** Fast Local Execution:** Optimized `uvicorn` setup with a lightweight container layer for ultra-fast throughput during model testing.
+- ** Dynamic Difficulty:** Three progressive difficulty settings (Easy, Medium, and Hard) testing simple pairing logic to cascading multi-block constraints.
+- ** HuggingFace Ready:** Packaged efficiently with OpenEnv specifications to run flawlessly on HF Spaces.
 
 ---
 
-## 💡 How It Works
+##  How It Works
 
 ### The Action Space
 On every step, the agent parses the current schedule and outputs an intervention for a single overlapping meeting:
@@ -74,22 +69,22 @@ The environment yields rich context arrays representing the state vector:
 
 ---
 
-## 🏗️ Technical Architecture & Progressive Tasks
+##  Technical Architecture & Progressive Tasks
 
 Depending on user invocation, CalTriage scales its internal complexity:
 
 | Task Tier | Active Meetings | Initial Conflicts | Locked Events | Soft Constraints Imposed | Expected Difficulty |
 |:---:|:---:|:---:|:---:|:---:|:---:|
-| 🟢 **Easy** | 6 | 2 | 1 | 0 | Beginner pairwise overlaps. |
-| 🟡 **Medium** | 10 | 4 | 2 | 2 (Preferred Time, Lunch) | Overlapping clusters. |
-| 🔴 **Hard** | 15 | 6 | 3 | 4 (Time, Lunch, Gaps) | Intensive dense cascading overlaps. |
+|  **Easy** | 6 | 2 | 1 | 0 | Beginner pairwise overlaps. |
+|  **Medium** | 10 | 4 | 2 | 2 (Preferred Time, Lunch) | Overlapping clusters. |
+|  **Hard** | 15 | 6 | 3 | 4 (Time, Lunch, Gaps) | Intensive dense cascading overlaps. |
 
 #### Reward Mechanism (0.0 to 1.0)
 Rewards are strictly normalized. The engine penalizes agents for breaking hard constraints (`reward = 0.0`) and issues continuous partial rewards (`0.0 - 0.5`) for conflict resolution combined with soft constraint violations, scaling to a perfect `1.0` for a unified schedule.
 
 ---
 
-## 🛠️ Quick Start & Setup
+##  Quick Start & Setup
 
 ### Requirements
 - **Python:** 3.10 or higher.
@@ -120,7 +115,7 @@ docker run -p 8000:8000 cal-triage-env
 
 ---
 
-## 🚀 Deploying to HuggingFace Spaces
+##  Deploying to HuggingFace Spaces
 Ready for submission? Deploy directly to a GPU-backed OpenEnv HF Space using the CLI:
 ```bash
 openenv push --repo-id your-username/cal-triage-env
@@ -128,7 +123,7 @@ openenv push --repo-id your-username/cal-triage-env
 
 ---
 
-## 📊 Evaluation & Baselines
+##  Evaluation & Baselines
 We benchmark standard Large Language Models acting as agents:
 
 | Baseline Agent | Easy | Medium | Hard |
@@ -142,6 +137,7 @@ We benchmark standard Large Language Models acting as agents:
 <div align="center">
 
 *Engineered for Round 1 of the **Meta PyTorch OpenEnv Hackathon**.*<br/>
-[Open an Issue](https://github.com/Shreyas-cpu/cal_triage_env/issues) · [BSD 3-Clause License](LICENSE)
+[Open an Issue](https://github.com/Shreyas-cpu/cal_triage_env/issues)  [BSD 3-Clause License](LICENSE)
 
 </div>
+

@@ -1,13 +1,13 @@
-"""
-CalTriage Environment — Core Business Logic.
+﻿"""
+CalTriage Environment  Core Business Logic.
 
 An RL environment where an AI executive assistant must resolve overlapping
 meeting conflicts on a daily calendar while respecting hard and soft constraints.
 
 Implements the OpenEnv Environment interface:
-    - reset()  → generates a conflicted daily schedule
-    - step()   → applies an agent action, returns observation + reward [0,1]
-    - state    → episode metadata
+    - reset()   generates a conflicted daily schedule
+    - step()    applies an agent action, returns observation + reward [0,1]
+    - state     episode metadata
 """
 
 import random
@@ -25,9 +25,9 @@ from models import (
     TimeSlot,
 )
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Meeting template pool — realistic executive-assistant scenario
-# ──────────────────────────────────────────────────────────────────────────────
+# 
+# Meeting template pool  realistic executive-assistant scenario
+# 
 
 MEETING_TEMPLATES: List[Dict[str, Any]] = [
     {"title": "CEO 1-on-1",          "priority": "critical", "duration": 60,  "attendees": ["ceo", "you"],              "locked": True},
@@ -47,9 +47,9 @@ MEETING_TEMPLATES: List[Dict[str, Any]] = [
     {"title": "Strategy Session",    "priority": "high",     "duration": 90,  "attendees": ["leadership", "you"],        "locked": False},
 ]
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Task configurations — easy / medium / hard
-# ──────────────────────────────────────────────────────────────────────────────
+# 
+# Task configurations  easy / medium / hard
+# 
 
 TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
     "easy": {
@@ -114,10 +114,10 @@ class CalTriageEnvironment:
     exhausted.
 
     Reward is normalized to [0.0, 1.0]:
-        0.0  — hard-constraint violation or invalid action
-        0.5  — all conflicts resolved but soft-constraint(s) violated
-        1.0  — perfect resolution (no conflicts, no violations)
-        0.0–0.3 — partial progress (intermediate steps)
+        0.0   hard-constraint violation or invalid action
+        0.5   all conflicts resolved but soft-constraint(s) violated
+        1.0   perfect resolution (no conflicts, no violations)
+        0.00.3  partial progress (intermediate steps)
     """
 
     SUPPORTS_CONCURRENT_SESSIONS = True
@@ -132,9 +132,9 @@ class CalTriageEnvironment:
         self._hard_violated: bool = False
         self._rng: random.Random = random.Random(42)
 
-    # ──────────────────────────────────────────────────────────────────────
-    #  OpenEnv API — reset()
-    # ──────────────────────────────────────────────────────────────────────
+    # 
+    #  OpenEnv API  reset()
+    # 
 
     def reset(
         self,
@@ -191,9 +191,9 @@ class CalTriageEnvironment:
             task_name=self._task_name,
         )
 
-    # ──────────────────────────────────────────────────────────────────────
-    #  OpenEnv API — step()
-    # ──────────────────────────────────────────────────────────────────────
+    # 
+    #  OpenEnv API  step()
+    # 
 
     def step(
         self,
@@ -204,11 +204,11 @@ class CalTriageEnvironment:
         """
         Apply the agent's action and return the updated observation.
 
-        Reward (strictly 0.0–1.0):
-            0.0 — hard constraint violated or invalid action (done=True)
-            0.5 — all conflicts resolved with soft violations (done=True)
-            1.0 — perfect resolution (done=True)
-            0.0–0.3 — partial progress (done=False)
+        Reward (strictly 0.01.0):
+            0.0  hard constraint violated or invalid action (done=True)
+            0.5  all conflicts resolved with soft violations (done=True)
+            1.0  perfect resolution (done=True)
+            0.00.3  partial progress (done=False)
         """
         # Parse action into CalAction
         if isinstance(action, CalAction):
@@ -222,7 +222,7 @@ class CalTriageEnvironment:
 
         self._state.step_count += 1
 
-        # ── Validate meeting exists ──────────────────────────────────────
+        #  Validate meeting exists 
         meeting = self._find_meeting(cal_action.meeting_id)
         if meeting is None:
                 return StepResult(
@@ -234,7 +234,7 @@ class CalTriageEnvironment:
                     {},
                 )
 
-        # ── Apply action ─────────────────────────────────────────────────
+        #  Apply action 
         if cal_action.action_type == "keep":
             pass  # no-op
 
@@ -292,7 +292,7 @@ class CalTriageEnvironment:
                 {},
             )
 
-        # ── Recalculate state ────────────────────────────────────────────
+        #  Recalculate state 
         conflicts = self._detect_conflicts()
         current_resolved = self._initial_conflict_count - len(conflicts)
         self._state.conflicts_resolved = max(0, current_resolved)
@@ -304,7 +304,7 @@ class CalTriageEnvironment:
         out_of_steps = self._state.step_count >= self._state.max_steps
         done = all_resolved or out_of_steps
 
-        # ── Compute reward  [0.0 – 1.0] ─────────────────────────────────
+        #  Compute reward  [0.0  1.0] 
         reward = self._compute_reward(
             conflicts_remaining=len(conflicts),
             soft_violations=soft_violations,
@@ -328,9 +328,9 @@ class CalTriageEnvironment:
             {"step": self._state.step_count, "conflicts_remaining": len(conflicts)},
         )
 
-    # ──────────────────────────────────────────────────────────────────────
-    #  OpenEnv API — state (property)
-    # ──────────────────────────────────────────────────────────────────────
+    # 
+    #  OpenEnv API  state (property)
+    # 
 
     @property
     def state(self) -> CalState:
@@ -340,11 +340,11 @@ class CalTriageEnvironment:
     def get_state(self) -> Dict[str, Any]:
         return self._state.model_dump()
 
-    # ══════════════════════════════════════════════════════════════════════
+    # 
     #  PRIVATE HELPERS
-    # ══════════════════════════════════════════════════════════════════════
+    # 
 
-    # ── Schedule Generation ──────────────────────────────────────────────
+    #  Schedule Generation 
 
     def _generate_schedule(self, config: Dict[str, Any]) -> None:
         """Build a daily schedule with deliberate overlaps."""
@@ -462,7 +462,7 @@ class CalTriageEnvironment:
             duration_min=duration,
         )
 
-    # ── Constraint Generation ────────────────────────────────────────────
+    #  Constraint Generation 
 
     def _generate_constraints(self, config: Dict[str, Any]) -> None:
         """Build constraints based on task difficulty."""
@@ -524,7 +524,7 @@ class CalTriageEnvironment:
 
         self._constraints = constraints
 
-    # ── Conflict Detection ───────────────────────────────────────────────
+    #  Conflict Detection 
 
     def _detect_conflicts(self) -> List[Conflict]:
         """Find all pairwise overlaps among active (non-cancelled) meetings."""
@@ -548,7 +548,7 @@ class CalTriageEnvironment:
 
         return conflicts
 
-    # ── Meeting Helpers ──────────────────────────────────────────────────
+    #  Meeting Helpers 
 
     def _active_meetings(self) -> List[Meeting]:
         """Return all non-cancelled meetings."""
@@ -578,7 +578,7 @@ class CalTriageEnvironment:
                 )
                 break
 
-    # ── Soft Constraint Checking ─────────────────────────────────────────
+    #  Soft Constraint Checking 
 
     def _count_soft_violations(self) -> int:
         """Count the number of soft constraint violations in the current schedule."""
@@ -635,7 +635,7 @@ class CalTriageEnvironment:
 
         return violations
 
-    # ── Reward Computation ───────────────────────────────────────────────
+    #  Reward Computation 
 
     def _compute_reward(
         self,
@@ -648,10 +648,10 @@ class CalTriageEnvironment:
         Compute a normalized reward strictly in [0.0, 1.0].
 
         Reward schedule:
-            - All conflicts resolved, zero soft violations   → 1.0
-            - All conflicts resolved, with soft violations    → 0.5
-            - Partial progress (conflicts still remain)       → 0.0–0.3
-            - No progress at all                              → 0.0
+            - All conflicts resolved, zero soft violations    1.0
+            - All conflicts resolved, with soft violations     0.5
+            - Partial progress (conflicts still remain)        0.00.3
+            - No progress at all                               0.0
         """
         if self._initial_conflict_count == 0:
             return 1.0  # no conflicts to begin with
@@ -674,7 +674,7 @@ class CalTriageEnvironment:
 
         return min(reward, 0.3)  # cap intermediate rewards
 
-    # ── Observation Builders ─────────────────────────────────────────────
+    #  Observation Builders 
 
     def _make_error_obs(self, error_msg: str) -> CalObservation:
         """Return an observation for an invalid action (reward=0.0, done=True)."""
@@ -703,3 +703,4 @@ class CalTriageEnvironment:
             last_action_error=error,
             task_name=self._task_name,
         )
+

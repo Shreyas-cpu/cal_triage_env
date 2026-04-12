@@ -1,4 +1,4 @@
-"""WebSocket E2E test — verifies stateful reset/step over WebSocket."""
+﻿"""WebSocket E2E test  verifies stateful reset/step over WebSocket."""
 import asyncio
 import json
 
@@ -28,7 +28,7 @@ async def test_ws():
             assert n_schedule > 0, f"Expected meetings but got 0 for {task}"
             assert n_conflicts > 0, f"Expected conflicts but got 0 for {task}"
             
-            # STEP — cancel non-locked meetings in conflicts
+            # STEP  cancel non-locked meetings in conflicts
             step_count = 0
             while obs.get("active_conflicts"):
                 conflicts = obs.get("active_conflicts", [])
@@ -80,3 +80,4 @@ async def test_ws():
     print("\n=== ALL WebSocket TESTS PASSED ===")
 
 asyncio.run(test_ws())
+

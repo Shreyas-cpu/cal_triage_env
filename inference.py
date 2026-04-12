@@ -1,6 +1,6 @@
-"""
-inference.py — CalTriage-Env
-OpenEnv Hackathon — Mandatory evaluation script.
+﻿"""
+inference.py  CalTriage-Env
+OpenEnv Hackathon  Mandatory evaluation script.
 
 STDOUT FORMAT (exact):
     [START] task=<task_name> env=<benchmark> model=<model_name>
@@ -151,7 +151,7 @@ def _build_prompt(obs_dict, step, max_steps):
     schedule = obs_dict.get("current_schedule", [])
     conflicts = obs_dict.get("active_conflicts", [])
 
-    lines = [f"Step {step}/{max_steps} — {len(conflicts)} conflict(s) remaining.\n"]
+    lines = [f"Step {step}/{max_steps}  {len(conflicts)} conflict(s) remaining.\n"]
     lines.append("SCHEDULE:")
     for meeting in schedule:
         time_slot = meeting.get("time_slot", {})
@@ -296,3 +296,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

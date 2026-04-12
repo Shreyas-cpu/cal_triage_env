@@ -1,4 +1,4 @@
-"""Quick smoke test — validates models, environment, and reward function."""
+﻿"""Quick smoke test  validates models, environment, and reward function."""
 import json
 import sys
 
@@ -10,22 +10,22 @@ print("=" * 60)
 print("\n[1] Testing imports...")
 try:
     from models import CalAction, CalObservation, CalState, Meeting, TimeSlot, Conflict, Constraint
-    print("    ✅ models.py imports OK")
+    print("     models.py imports OK")
 except Exception as e:
-    print(f"    ❌ models.py import FAILED: {e}")
+    print(f"     models.py import FAILED: {e}")
     sys.exit(1)
 
 try:
     from server.environment import CalTriageEnvironment
-    print("    ✅ server/environment.py imports OK")
+    print("     server/environment.py imports OK")
 except Exception as e:
-    print(f"    ❌ server/environment.py import FAILED: {e}")
+    print(f"     server/environment.py import FAILED: {e}")
     sys.exit(1)
 
 # 2. Test environment instantiation
 print("\n[2] Testing CalTriageEnvironment()...")
 env = CalTriageEnvironment()
-print("    ✅ Environment created")
+print("     Environment created")
 
 # 3. Test reset for each task
 for task in ["easy", "medium", "hard"]:
@@ -40,14 +40,14 @@ for task in ["easy", "medium", "hard"]:
     assert obs.num_conflicts == len(obs.active_conflicts), "num_conflicts mismatch"
     assert obs.task_name == task, f"task_name should be '{task}', got {obs.task_name}"
     
-    print(f"    ✅ Reset OK: {len(obs.current_schedule)} meetings, {obs.num_conflicts} conflicts")
+    print(f"     Reset OK: {len(obs.current_schedule)} meetings, {obs.num_conflicts} conflicts")
     print(f"    Meetings: {[m.meeting_id + ' (' + m.title + ')' for m in obs.current_schedule[:3]]}...")
     
     # Print conflicts for debugging
     for c in obs.active_conflicts:
-        print(f"    Conflict: {c.meeting_a_id} ↔ {c.meeting_b_id} ({c.overlap_minutes}min overlap)")
+        print(f"    Conflict: {c.meeting_a_id}  {c.meeting_b_id} ({c.overlap_minutes}min overlap)")
 
-# 4. Test hard constraint violation → reward=0.0
+# 4. Test hard constraint violation  reward=0.0
 print("\n[4] Testing HARD CONSTRAINT violation (cancel locked meeting)...")
 obs = env.reset(seed=42, task_name="easy")
 locked_meetings = [m for m in obs.current_schedule if m.is_locked]
@@ -60,7 +60,7 @@ result = env.step(action)
 assert result.reward == 0.0, f"Hard constraint violation should give reward=0.0, got {result.reward}"
 assert result.done == True, f"Hard constraint violation should set done=True, got {result.done}"
 assert result.last_action_error is not None, "Should have an error message"
-print(f"    ✅ Reward={result.reward}, done={result.done}, error='{result.last_action_error}'")
+print(f"     Reward={result.reward}, done={result.done}, error='{result.last_action_error}'")
 
 # 5. Test valid action (cancel non-locked meeting)
 print("\n[5] Testing valid cancel action...")
@@ -85,9 +85,9 @@ if target:
     action = CalAction(meeting_id=target.meeting_id, action_type="cancel")
     result = env.step(action)
     assert 0.0 <= result.reward <= 1.0, f"Reward out of range: {result.reward}"
-    print(f"    ✅ Reward={result.reward}, done={result.done}, conflicts_left={result.num_conflicts}")
+    print(f"     Reward={result.reward}, done={result.done}, conflicts_left={result.num_conflicts}")
 else:
-    print("    ⚠️ No non-locked meeting in conflict (unexpected)")
+    print("     No non-locked meeting in conflict (unexpected)")
 
 # 6. Test reschedule action
 print("\n[6] Testing reschedule action...")
@@ -106,7 +106,7 @@ if non_locked_in_conflict:
     )
     result = env.step(action)
     assert 0.0 <= result.reward <= 1.0, f"Reward out of range: {result.reward}"
-    print(f"    ✅ Reward={result.reward}, done={result.done}, conflicts_left={result.num_conflicts}")
+    print(f"     Reward={result.reward}, done={result.done}, conflicts_left={result.num_conflicts}")
 
 # 7. Test full episode (resolve all conflicts)
 print("\n[7] Testing full easy episode (cancel all conflicting non-locked meetings)...")
@@ -139,17 +139,18 @@ print("\n[8] Testing state property...")
 state = env.state
 assert isinstance(state, CalState), f"Expected CalState, got {type(state)}"
 assert state.step_count == step, f"Step count mismatch: {state.step_count} vs {step}"
-print(f"    ✅ State: steps={state.step_count}, resolved={state.conflicts_resolved}, "
+print(f"     State: steps={state.step_count}, resolved={state.conflicts_resolved}, "
       f"task={state.task_name}")
 
 # 9. Test server app import
 print("\n[9] Testing server/app.py import...")
 try:
     from server.app import app
-    print(f"    ✅ FastAPI app created: {app}")
+    print(f"     FastAPI app created: {app}")
 except Exception as e:
-    print(f"    ❌ app.py import FAILED: {e}")
+    print(f"     app.py import FAILED: {e}")
 
 print("\n" + "=" * 60)
-print("ALL SMOKE TESTS PASSED ✅")
+print("ALL SMOKE TESTS PASSED ")
 print("=" * 60)
+

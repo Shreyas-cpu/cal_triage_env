@@ -1,5 +1,5 @@
-"""
-CalTriage-Env — Smart Calendar Triage RL Environment.
+﻿"""
+CalTriage-Env  Smart Calendar Triage RL Environment.
 
 A real-world OpenEnv environment where an AI executive assistant resolves
 overlapping meeting conflicts on a daily schedule while respecting constraints.
@@ -23,3 +23,4 @@ except Exception:
 from .models import CalAction, CalObservation, CalState
 
 __all__ = ["CalTriageEnv", "CalAction", "CalObservation", "CalState"]
+
