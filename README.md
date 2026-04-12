@@ -5,7 +5,12 @@ colorFrom: blue
 colorTo: indigo
 sdk: docker
 pinned: false
-app_port: 8000
+license: bsd-3-clause
+tags:
+  - openenv
+  - calendar
+  - scheduling
+  - reinforcement-learning
 ---
 
 <p align="center">

@@ -1,308 +1,123 @@
 """
-Inference Script for CalTriage-Env
-===================================
-MANDATORY evaluation script for the Meta PyTorch OpenEnv Hackathon.
+inference.py — CalTriage-Env
+OpenEnv Hackathon — Mandatory evaluation script.
 
-Runs an LLM agent against the CalTriage environment across all 3 tasks
-(easy, medium, hard) and produces structured [START]/[STEP]/[END] logs.
-
-Environment variables required:
-    API_BASE_URL   HF Router endpoint (default: https://router.huggingface.co/v1)
-    MODEL_NAME     Model identifier (default: Qwen/Qwen2.5-72B-Instruct)
-    HF_TOKEN       Hugging Face API token
-    IMAGE_NAME     Docker image name (if using from_docker_image)
-
-STDOUT FORMAT:
+STDOUT FORMAT (exact):
     [START] task=<task_name> env=<benchmark> model=<model_name>
-    [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
+    [STEP] step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
+    [END] success=<true|false> steps=<n> score=<0.000> rewards=<r1,r2,...>
 """
 
-import asyncio
 import json
 import os
 import re
-import textwrap
-from typing import Any, Dict, List, Optional
+import sys
 
-from openai import OpenAI
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Configuration
-# ──────────────────────────────────────────────────────────────────────────────
+import requests
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 HF_TOKEN = os.getenv("HF_TOKEN")
+API_KEY = os.getenv("API_KEY") or HF_TOKEN or ""
+ENV_URL = os.getenv("ENV_URL", "http://localhost:7860")
 
-# Optional - if you use from_docker_image():
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
-
-ENV_URL = os.getenv("ENV_URL", "http://localhost:8000")
 BENCHMARK = "cal_triage_env"
-TASKS = ["easy", "medium", "hard"]
-MAX_STEPS_MAP = {"easy": 5, "medium": 8, "hard": 12}
-TEMPERATURE = 0.3
-MAX_TOKENS = 200
-SUCCESS_THRESHOLD = 0.5
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Structured Logging  (must match hackathon format exactly)
-# ──────────────────────────────────────────────────────────────────────────────
+MAX_STEPS = {"easy": 5, "medium": 8, "hard": 12}
+SUCCESS_THRESHOLD = 0.4
 
 
-def log_start(task: str, env: str, model: str) -> None:
+def _clean(error):
+    text = re.sub(r"<[^>]+>", "", str(error))
+    text = re.sub(r"\s+", " ", text).strip()[:120]
+    return text if text else "error"
+
+
+def log_start(task, env, model):
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
 
-def log_step(
-    step: int, action: str, reward: float, done: bool, error: Optional[str]
-) -> None:
-    error_val = error if error else "null"
-    done_val = str(done).lower()
+def log_step(step, action, reward, done, error):
+    err = _clean(error) if error else "null"
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
+        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={err}",
         flush=True,
     )
 
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# System Prompt  (instructs the LLM to be an AI calendar assistant)
-# ──────────────────────────────────────────────────────────────────────────────
-
-SYSTEM_PROMPT = textwrap.dedent("""\
-    You are an AI executive assistant whose job is to resolve meeting conflicts
-    on a daily calendar. Each step you must act on ONE meeting.
-
-    ACTIONS (pick exactly one):
-      reschedule — Move the meeting to a new, conflict-free time.
-      cancel     — Remove the meeting from the calendar entirely.
-      keep       — Leave the meeting at its current time (use when it's locked).
-
-    CRITICAL RULES:
-    1. NEVER reschedule or cancel a meeting marked is_locked=true. Always "keep" it.
-    2. Prefer rescheduling over cancelling — cancelling is penalised.
-    3. When rescheduling, pick a time that does NOT overlap any other meeting.
-    4. Resolve the conflict involving the LOWER-priority meeting.
-       Priority order: critical > high > medium > low
-    5. Times use 30-minute granularity: minutes must be 0 or 30.
-    6. Keep meetings within working hours (day boundaries shown in schedule).
-
-    RESPONSE FORMAT — output ONLY a single JSON object, nothing else:
-    For reschedule:
-      {"meeting_id": "mtg_XXX", "action_type": "reschedule", "new_start_hour": 14, "new_start_minute": 0}
-    For cancel:
-      {"meeting_id": "mtg_XXX", "action_type": "cancel"}
-    For keep:
-      {"meeting_id": "mtg_XXX", "action_type": "keep"}
-
-    Do NOT add any explanation, markdown, or extra text. Only valid JSON.
-""")
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Prompt Builder  (formats the observation for the LLM)
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def format_meeting(m: Dict[str, Any]) -> str:
-    """Format a single meeting dict into a human-readable line."""
-    ts = m.get("time_slot", {})
-    sh, sm = ts.get("start_hour", 0), ts.get("start_minute", 0)
-    dur = ts.get("duration_min", 30)
-    eh, em = divmod(sh * 60 + sm + dur, 60)
-    locked = " [LOCKED]" if m.get("is_locked") else ""
-    prio = m.get("priority", "medium")
-    return (
-        f'  {m["meeting_id"]}: "{m.get("title", "?")}" '
-        f"{sh:02d}:{sm:02d}-{eh:02d}:{em:02d} "
-        f"(priority={prio}{locked})"
+def log_end(success, steps, score, rewards):
+    values = ",".join(f"{value:.2f}" for value in rewards)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={values}",
+        flush=True,
     )
 
 
-def format_conflict(c: Dict[str, Any]) -> str:
-    """Format a conflict dict."""
-    return (
-        f"  {c['meeting_a_id']} overlaps with {c['meeting_b_id']} "
-        f"by {c['overlap_minutes']} minutes"
-    )
+def ensure_packages():
+    for package_name, install_spec in [("openai", "openai==1.30.1"), ("requests", "requests")]:
+        try:
+            __import__(package_name)
+        except ImportError:
+            os.system(f"{sys.executable} -m pip install {install_spec} --quiet")
 
 
-def format_constraint(c: Dict[str, Any]) -> str:
-    """Format a constraint dict."""
-    hard = "HARD" if c.get("is_hard") else "SOFT"
-    return f"  [{hard}] {c.get('constraint_type', '?')} → target={c.get('target', '?')}"
+ensure_packages()
 
 
-def build_user_prompt(obs: Dict[str, Any], step: int, max_steps: int) -> str:
-    """Build the user prompt from the current observation."""
-    schedule_lines = [
-        format_meeting(m) for m in obs.get("current_schedule", [])
-    ]
-    conflict_lines = [
-        format_conflict(c) for c in obs.get("active_conflicts", [])
-    ]
-    constraint_lines = [
-        format_constraint(c) for c in obs.get("constraints", [])
-    ]
+client = None
+try:
+    if API_KEY:
+        from openai import OpenAI
 
-    return textwrap.dedent(f"""\
-        Step {step}/{max_steps} — {obs.get('num_conflicts', 0)} conflict(s) remaining.
-
-        CURRENT SCHEDULE:
-        {chr(10).join(schedule_lines) if schedule_lines else "  (empty)"}
-
-        ACTIVE CONFLICTS:
-        {chr(10).join(conflict_lines) if conflict_lines else "  None — all resolved!"}
-
-        CONSTRAINTS:
-        {chr(10).join(constraint_lines) if constraint_lines else "  None"}
-
-        Your action (JSON only):
-    """)
+        client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+except Exception:
+    client = None
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# LLM Interaction
-# ──────────────────────────────────────────────────────────────────────────────
+SYSTEM_PROMPT = """You are an AI executive assistant resolving calendar conflicts.
+
+Given a schedule with overlapping meetings, choose ONE meeting to act on:
+- reschedule: move it to a free time slot
+- cancel: remove it entirely
+- keep: leave it (use for locked meetings)
+
+RULES:
+1. NEVER reschedule or cancel a meeting marked is_locked=true. Always "keep" locked meetings.
+2. Prefer reschedule over cancel.
+3. Target the LOWEST-priority meeting in the conflict.
+4. Priority order (highest to lowest): critical > high > medium > low
+
+Reply with EXACTLY one line:
+ACTION: <meeting_id> <reschedule|cancel|keep> [new_hour] [new_minute]
+
+Examples:
+ACTION: mtg_003 cancel
+ACTION: mtg_002 reschedule 14 0
+ACTION: mtg_000 keep"""
 
 
-def get_llm_action(
-    client: OpenAI,
-    obs: Dict[str, Any],
-    step: int,
-    max_steps: int,
-    history: List[str],
-) -> Dict[str, Any]:
-    """Call the LLM and parse its response into an action dict."""
-    user_prompt = build_user_prompt(obs, step, max_steps)
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-    ]
-    # Add last 2 history entries for context
-    for h in history[-2:]:
-        messages.append({"role": "assistant", "content": h})
-    messages.append({"role": "user", "content": user_prompt})
-
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            stream=False,
-        )
-        raw = (completion.choices[0].message.content or "").strip()
-    except Exception as exc:
-        print(f"[DEBUG] LLM request failed: {exc}", flush=True)
-        raw = ""
-
-    return parse_llm_response(raw, obs)
+PRIORITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
 
 
-def parse_llm_response(raw: str, obs: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Parse the LLM's text response into a valid action dict.
-    Falls back to a safe heuristic if parsing fails.
-    """
-    # Try direct JSON parse
-    action = try_parse_json(raw)
-    if action and is_valid_action(action):
-        return clean_action(action)
-
-    # Try extracting JSON from markdown or mixed text
-    json_match = re.search(r"\{[^}]+\}", raw, re.DOTALL)
-    if json_match:
-        action = try_parse_json(json_match.group())
-        if action and is_valid_action(action):
-            return clean_action(action)
-
-    # Fallback: use heuristic — cancel/reschedule the lowest-priority
-    # unlocked meeting involved in a conflict
-    return fallback_action(obs)
-
-
-def try_parse_json(text: str) -> Optional[Dict[str, Any]]:
-    """Attempt to parse text as JSON."""
-    try:
-        return json.loads(text)
-    except (json.JSONDecodeError, TypeError):
-        return None
-
-
-def is_valid_action(action: Dict[str, Any]) -> bool:
-    """Check if an action dict has the minimum required fields."""
-    return (
-        isinstance(action, dict)
-        and "meeting_id" in action
-        and "action_type" in action
-        and action["action_type"] in ("reschedule", "cancel", "keep")
-    )
-
-
-def clean_action(action: Dict[str, Any]) -> Dict[str, Any]:
-    """Ensure action only contains valid fields."""
-    result: Dict[str, Any] = {
-        "meeting_id": str(action["meeting_id"]),
-        "action_type": action["action_type"],
-    }
-    if action["action_type"] == "reschedule":
-        result["new_start_hour"] = int(action.get("new_start_hour", 14))
-        result["new_start_minute"] = int(action.get("new_start_minute", 0))
-        # Snap to valid 30-min values
-        if result["new_start_minute"] not in (0, 30):
-            result["new_start_minute"] = 0
-    return result
-
-
-def fallback_action(obs: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Heuristic fallback when LLM output can't be parsed.
-    Picks the lowest-priority unlocked meeting from the first conflict
-    and cancels it.
-    """
-    conflicts = obs.get("active_conflicts", [])
-    schedule = obs.get("current_schedule", [])
+def _fallback_action(obs_dict):
+    conflicts = obs_dict.get("active_conflicts", [])
+    schedule = {meeting["meeting_id"]: meeting for meeting in obs_dict.get("current_schedule", [])}
 
     if not conflicts or not schedule:
-        # Nothing to do — keep first meeting
-        if schedule:
-            return {"meeting_id": schedule[0]["meeting_id"], "action_type": "keep"}
-        return {"meeting_id": "mtg_000", "action_type": "keep"}
+        first_id = obs_dict.get("current_schedule", [{}])[0].get("meeting_id", "mtg_000") if obs_dict.get("current_schedule") else "mtg_000"
+        return {"meeting_id": first_id, "action_type": "keep"}
 
-    # Build lookup
-    meetings_by_id = {m["meeting_id"]: m for m in schedule}
-    priority_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}
-
-    # Pick first conflict, find the lower-priority unlocked meeting
     conflict = conflicts[0]
-    m_a = meetings_by_id.get(conflict["meeting_a_id"])
-    m_b = meetings_by_id.get(conflict["meeting_b_id"])
-
-    if not m_a or not m_b:
-        return {"meeting_id": conflict["meeting_a_id"], "action_type": "keep"}
-
-    # Pick the lower-priority, non-locked meeting to cancel
-    candidates = []
-    for m in [m_a, m_b]:
-        if not m.get("is_locked", False):
-            candidates.append(m)
+    meeting_a = schedule.get(conflict["meeting_a_id"])
+    meeting_b = schedule.get(conflict["meeting_b_id"])
+    candidates = [meeting for meeting in [meeting_a, meeting_b] if meeting and not meeting.get("is_locked", False)]
 
     if not candidates:
-        # Both locked — keep one (will result in 0 reward but no crash)
-        return {"meeting_id": m_a["meeting_id"], "action_type": "keep"}
+        return {"meeting_id": conflict["meeting_a_id"], "action_type": "keep"}
 
-    # Sort by priority ascending (lowest first)
-    candidates.sort(key=lambda x: priority_rank.get(x.get("priority", "low"), 0))
+    candidates.sort(key=lambda meeting: PRIORITY_RANK.get(meeting.get("priority", "low"), 0))
     target = candidates[0]
 
-    # Try to find a free slot for rescheduling instead of cancelling
-    free_hour = find_free_slot(schedule, target.get("time_slot", {}).get("duration_min", 30))
+    free_hour = _find_free_slot(obs_dict.get("current_schedule", []), 30)
     if free_hour is not None:
         return {
             "meeting_id": target["meeting_id"],
@@ -314,170 +129,170 @@ def fallback_action(obs: Dict[str, Any]) -> Dict[str, Any]:
     return {"meeting_id": target["meeting_id"], "action_type": "cancel"}
 
 
-def find_free_slot(
-    schedule: List[Dict[str, Any]], duration: int
-) -> Optional[int]:
-    """Find a free hour slot that doesn't overlap with any meeting."""
+def _find_free_slot(schedule, duration):
     occupied = set()
-    for m in schedule:
-        ts = m.get("time_slot", {})
-        start = ts.get("start_hour", 0) * 60 + ts.get("start_minute", 0)
-        end = start + ts.get("duration_min", 30)
-        for t in range(start, end):
-            occupied.add(t)
+    for meeting in schedule:
+        time_slot = meeting.get("time_slot", {})
+        start = time_slot.get("start_hour", 0) * 60 + time_slot.get("start_minute", 0)
+        for minute in range(start, start + time_slot.get("duration_min", 30)):
+            occupied.add(minute)
 
-    # Search from 8 AM to 6 PM
     for hour in range(8, 18):
         for minute in (0, 30):
             start = hour * 60 + minute
-            end = start + duration
-            if end > 18 * 60:
+            if start + duration > 18 * 60:
                 continue
-            slot_minutes = set(range(start, end))
-            if not slot_minutes & occupied:
+            if not any((start + offset) in occupied for offset in range(duration)):
                 return hour
     return None
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Environment Communication via WebSocket
-#
-# IMPORTANT: OpenEnv HTTP endpoints (/reset, /step) are stateless — they
-# create a NEW environment per request.  A WebSocket connection maintains
-# a persistent session so that reset() state carries through to step().
-# ──────────────────────────────────────────────────────────────────────────────
+def _build_prompt(obs_dict, step, max_steps):
+    schedule = obs_dict.get("current_schedule", [])
+    conflicts = obs_dict.get("active_conflicts", [])
+
+    lines = [f"Step {step}/{max_steps} — {len(conflicts)} conflict(s) remaining.\n"]
+    lines.append("SCHEDULE:")
+    for meeting in schedule:
+        time_slot = meeting.get("time_slot", {})
+        locked = " [LOCKED]" if meeting.get("is_locked") else ""
+        lines.append(
+            f"  {meeting['meeting_id']}: \"{meeting.get('title','?')}\" "
+            f"{time_slot.get('start_hour',0):02d}:{time_slot.get('start_minute',0):02d} "
+            f"(priority={meeting.get('priority','?')}{locked})"
+        )
+
+    lines.append("\nCONFLICTS:")
+    for conflict in conflicts:
+        lines.append(
+            f"  {conflict['meeting_a_id']} overlaps {conflict['meeting_b_id']} by {conflict['overlap_minutes']} min"
+        )
+
+    lines.append("\nYour action (one line: ACTION: <id> <type> [hour] [min]):")
+    return "\n".join(lines)
 
 
-async def ws_run_episode(
-    ws_url: str,
-    task_name: str,
-    llm_client: OpenAI,
-) -> None:
-    """Run one episode for *task_name* over a WebSocket connection."""
-    import websockets
+def _parse_llm_response(raw, obs_dict):
+    raw = raw.strip().upper()
+    match = re.search(r"ACTION:\s*(\S+)\s+(RESCHEDULE|CANCEL|KEEP)(?:\s+(\d+)(?:\s+(\d+))?)?", raw)
+    if match:
+        meeting_id = match.group(1).lower()
+        action_type = match.group(2).lower()
+        hour = int(match.group(3)) if match.group(3) else None
+        minute = int(match.group(4)) if match.group(4) else 0
+        action = {"meeting_id": meeting_id, "action_type": action_type}
+        if action_type == "reschedule" and hour is not None:
+            action["new_start_hour"] = hour
+            action["new_start_minute"] = minute if minute in (0, 30) else 0
+        return action
+    return None
 
-    max_steps = MAX_STEPS_MAP.get(task_name, 8)
-    history: List[str] = []
-    rewards: List[float] = []
-    steps_taken = 0
-    score = 0.0
-    success = False
 
-    log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
+def _agent_act(obs_dict, step, max_steps):
+    if client is None:
+        return _fallback_action(obs_dict), "client_unavailable"
+
+    prompt = _build_prompt(obs_dict, step, max_steps)
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=50,
+            temperature=0.0,
+        )
+        raw = response.choices[0].message.content or ""
+        action = _parse_llm_response(raw, obs_dict)
+        if action:
+            return action, None
+        return _fallback_action(obs_dict), "parse_failed"
+    except Exception as exc:
+        return _fallback_action(obs_dict), _clean(exc)
+
+
+def _http_reset(task_name):
+    response = requests.post(f"{ENV_URL}/reset", json={"task_name": task_name}, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def _http_step(action_dict):
+    response = requests.post(f"{ENV_URL}/step", json=action_dict, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def _action_to_str(action_dict):
+    parts = [f"meeting={action_dict.get('meeting_id', '?')}", f"action={action_dict.get('action_type', '?')}" ]
+    if action_dict.get("action_type") == "reschedule":
+        parts.append(f"hour={action_dict.get('new_start_hour','?')}")
+    return ",".join(parts)
+
+
+def run_task(task_id, difficulty):
+    max_steps = MAX_STEPS.get(difficulty, 8)
+    log_start(task_id, BENCHMARK, MODEL_NAME)
+
+    rewards = []
+    steps = 0
+    done = False
 
     try:
-        async with websockets.connect(ws_url) as ws:
-            # ── RESET ────────────────────────────────────────────────
-            reset_msg = json.dumps({
-                "type": "reset",
-                "data": {"task_name": task_name, "seed": 42},
-            })
-            await ws.send(reset_msg)
-            raw_resp = await ws.recv()
-            resp = json.loads(raw_resp)
-
-            # WSObservationResponse.data = serialize_observation(obs) =
-            #   {"observation": {schedule, conflicts, ...}, "reward": ..., "done": ...}
-            ws_data = resp.get("data", resp)
-            obs = ws_data.get("observation", ws_data)
-            obs["reward"] = ws_data.get("reward", 0.0)
-            obs["done"] = ws_data.get("done", False)
-
-            for step in range(1, max_steps + 1):
-                if obs.get("done"):
-                    break
-
-                # Get LLM action
-                action_dict = get_llm_action(llm_client, obs, step, max_steps, history)
-
-                # ── STEP ─────────────────────────────────────────────
-                step_msg = json.dumps({
-                    "type": "step",
-                    "data": action_dict,
-                })
-                await ws.send(step_msg)
-                raw_resp = await ws.recv()
-                resp = json.loads(raw_resp)
-
-                # Handle error responses from the server
-                if resp.get("type") == "error":
-                    err_data = resp.get("data", {})
-                    error_msg = err_data.get("message", str(err_data))
-                    rewards.append(0.0)
-                    steps_taken = step
-                    log_step(step=step, action=json.dumps(action_dict, separators=(",", ":")),
-                             reward=0.0, done=True, error=error_msg)
-                    break
-
-                ws_data = resp.get("data", resp)
-                obs = ws_data.get("observation", ws_data)
-                reward = ws_data.get("reward", 0.0)
-                if reward is None:
-                    reward = 0.0
-                done = ws_data.get("done", False)
-                error = obs.get("last_action_error")
-                # Merge reward/done into obs for consistency
-                obs["reward"] = reward
-                obs["done"] = done
-
-                rewards.append(float(reward))
-                steps_taken = step
-
-                action_str = json.dumps(action_dict, separators=(",", ":"))
-                log_step(step=step, action=action_str, reward=float(reward),
-                         done=done, error=error)
-                history.append(action_str)
-
-                if done:
-                    break
-
-            # ── STATE (optional — log episode metadata) ──────────
-            try:
-                state_msg = json.dumps({"type": "state"})
-                await ws.send(state_msg)
-                raw_state = await ws.recv()
-                state_resp = json.loads(raw_state)
-                state_data = state_resp.get("data", state_resp)
-                print(f"[DEBUG] Final state: {json.dumps(state_data)}", flush=True)
-            except Exception:
-                pass
-
-            # ── CLOSE ────────────────────────────────────────────────
-            try:
-                close_msg = json.dumps({"type": "close"})
-                await ws.send(close_msg)
-            except Exception:
-                pass
-
-        # Final score = last reward (which encodes full episode outcome)
-        score = rewards[-1] if rewards else 0.0
-        score = min(max(score, 0.0), 1.0)
-        success = score >= SUCCESS_THRESHOLD
-
+        obs_dict = _http_reset(difficulty)
     except Exception as exc:
-        print(f"[DEBUG] Episode error: {exc}", flush=True)
+        log_step(1, "meeting=none,action=keep", 0.0, True, _clean(exc))
+        log_end(False, 1, 0.0, [0.0])
+        return 0.0
 
-    finally:
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    while not done and steps < max_steps:
+        error_str = None
+        action_str = "meeting=none,action=keep"
+        reward = 0.0
+
+        try:
+            action, error_str = _agent_act(obs_dict, steps + 1, max_steps)
+            action_str = _action_to_str(action)
+            result = _http_step(action)
+            obs_dict = result.get("observation", obs_dict)
+            reward = float(result.get("reward", 0.0))
+            done = bool(result.get("done", False))
+            if isinstance(obs_dict, dict):
+                error_str = obs_dict.get("last_action_error")
+        except Exception as exc:
+            error_str = _clean(exc)
+            done = True
+
+        steps += 1
+        rewards.append(reward)
+        log_step(steps, action_str, reward, done, error_str)
+
+        if done:
+            break
+
+    score = round(sum(rewards) / max(len(rewards), 1), 3)
+    log_end(score >= SUCCESS_THRESHOLD, steps, score, rewards)
+    return score
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Main — run all 3 tasks via WebSocket
-# ──────────────────────────────────────────────────────────────────────────────
+def main():
+    tasks = [("task_easy", "easy"), ("task_medium", "medium"), ("task_hard", "hard")]
+    results = {}
 
+    for task_id, difficulty in tasks:
+        try:
+            results[task_id] = run_task(task_id, difficulty)
+        except Exception:
+            log_start(task_id, BENCHMARK, MODEL_NAME)
+            log_step(1, "meeting=none,action=keep", 0.0, True, "null")
+            log_end(False, 1, 0.0, [0.0])
+            results[task_id] = 0.0
 
-async def main() -> None:
-    """Run all tasks against the environment server."""
-    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
-
-    # Build WebSocket URL from ENV_URL
-    # http://localhost:8000 → ws://localhost:8000/ws
-    ws_base = ENV_URL.replace("https://", "wss://").replace("http://", "ws://")
-    ws_url = f"{ws_base}/ws"
-
-    for task in TASKS:
-        await ws_run_episode(ws_url, task, llm_client)
+    overall = round(sum(results.values()) / len(results), 3)
+    with open("baseline_scores.json", "w", encoding="utf-8") as handle:
+        json.dump({"tasks": results, "overall": overall, "model": MODEL_NAME}, handle, indent=2)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

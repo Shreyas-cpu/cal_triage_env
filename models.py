@@ -9,11 +9,9 @@ All models use strict Pydantic typing as required by the OpenEnv specification.
 """
 
 from typing import Any, List, Literal, Optional, Tuple
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
-
-# OpenEnv base types — Action, Observation, State
-from openenv.core.env_server.types import Action, Observation, State
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +128,7 @@ class Constraint(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class CalAction(Action):
+class CalAction(BaseModel):
     """
     The agent's decision for resolving a calendar conflict.
 
@@ -163,7 +161,7 @@ class CalAction(Action):
         return v
 
 
-class CalObservation(Observation):
+class CalObservation(BaseModel):
     """
     The environment's response after each step (or on reset).
 
@@ -191,6 +189,10 @@ class CalObservation(Observation):
     num_conflicts: int = Field(
         default=0, ge=0, description="Number of active conflicts"
     )
+    done: bool = Field(default=False, description="Whether the episode has ended")
+    reward: float = Field(
+        default=0.0, description="Reward for this step, normalized 0.0-1.0"
+    )
     last_action_error: Optional[str] = Field(
         default=None,
         description="Error from last action, e.g. 'Cannot cancel a locked meeting'",
@@ -201,7 +203,7 @@ class CalObservation(Observation):
     )
 
 
-class CalState(State):
+class CalState(BaseModel):
     """
     Internal episode metadata tracked by the environment.
 
@@ -210,6 +212,11 @@ class CalState(State):
         - step_count (int): Current step number
     """
 
+    episode_id: str = Field(
+        default_factory=lambda: str(uuid4()),
+        description="Unique episode identifier",
+    )
+    step_count: int = Field(default=0, description="Current step number")
     max_steps: int = Field(
         default=5, description="Maximum steps allowed in this episode"
     )

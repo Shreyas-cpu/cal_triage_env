@@ -3,108 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CalTriage Premium AI Environment</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>CalTriage Mission Console</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Header -->
-        <header class="glass-header">
-            <div class="logo-area">
-                <div class="logo-icon"></div>
-                <h1>CalTriage <span>AI Agent</span></h1>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+    <div class="bg-grid"></div>
+
+    <div class="app-shell">
+        <header class="topbar panel reveal">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <span class="mark-core"></span>
+                    <span class="mark-ring"></span>
+                    <span class="mark-slice mark-slice-a"></span>
+                    <span class="mark-slice mark-slice-b"></span>
+                </div>
+                <div>
+                    <p class="eyebrow">CalTriage OpenEnv</p>
+                    <h1>Calendar Intelligence Hub</h1>
+                </div>
             </div>
-            <div class="health-status">
-                <span class="pulse"></span> System Online
+            <div class="topbar-right">
+                <span class="pill" id="healthPill"><span class="dot"></span> Checking health</span>
+                <span class="pill" id="taskPill">Task: easy</span>
             </div>
         </header>
 
-        <div class="main-content">
-            <!-- Left Panel: Controls -->
-            <aside class="control-panel glass-panel">
-                <h2>Control Center</h2>
-                
-                <div class="control-section">
-                    <h3>Reset Environment</h3>
-                    <div class="input-group">
-                        <label>Task Difficulty</label>
-                        <select id="taskName">
-                            <option value="easy">Easy</option>
-                            <option value="medium">Medium</option>
-                            <option value="hard">Hard</option>
-                        </select>
+        <section class="kpis reveal delay-1">
+            <article class="kpi panel">
+                <p>Conflicts</p>
+                <h2 id="conflictCount">0</h2>
+            </article>
+            <article class="kpi panel">
+                <p>Reward</p>
+                <h2 id="rewardScore">0.00</h2>
+            </article>
+            <article class="kpi panel">
+                <p>Step</p>
+                <h2 id="stepCount">0</h2>
+            </article>
+            <article class="kpi panel">
+                <p>Episode</p>
+                <h2 id="episodeStatus">RUNNING</h2>
+            </article>
+        </section>
+
+        <section class="insight-strip panel reveal delay-1">
+            <article>
+                <p class="insight-label">Focus</p>
+                <h3>Resolve conflict clusters early</h3>
+                <p class="insight-text">Prioritize high-attendee overlaps to raise score quickly with fewer actions.</p>
+            </article>
+            <article>
+                <p class="insight-label">Guideline</p>
+                <h3>Use keep for protected slots</h3>
+                <p class="insight-text">Locked meetings preserve hard constraints. Reschedule around them for safe reward growth.</p>
+            </article>
+            <article>
+                <p class="insight-label">Success Signal</p>
+                <h3>Low conflicts + high completion</h3>
+                <p class="insight-text">Watch the infographic meters to see scheduling quality improve in real time.</p>
+            </article>
+        </section>
+
+        <main class="workspace reveal delay-2">
+            <aside class="panel controls">
+                <h3>Operations</h3>
+
+                <div class="group">
+                    <label for="taskName">Difficulty</label>
+                    <select id="taskName">
+                        <option value="easy">easy</option>
+                        <option value="medium">medium</option>
+                        <option value="hard">hard</option>
+                    </select>
+                    <div class="row two">
+                        <button class="btn btn-solid" id="resetBtn">Reset</button>
+                        <button class="btn btn-ghost" id="stateBtn">Get State</button>
                     </div>
-                    <button class="btn btn-primary" onclick="resetEnv()">Reset Schedule</button>
                 </div>
 
-                <div class="control-section">
-                    <h3>Take Action</h3>
-                    <div class="input-group">
-                        <label>Meeting ID</label>
-                        <input type="text" id="meetingId" placeholder="e.g. mtg_001">
-                    </div>
-                    <div class="input-group">
-                        <label>Action Type</label>
-                        <select id="actionType" onchange="toggleTimeInputs()">
-                            <option value="keep">Keep</option>
-                            <option value="reschedule">Reschedule</option>
-                            <option value="cancel">Cancel</option>
-                        </select>
-                    </div>
-                    <div class="time-inputs" id="timeInputs" style="display: none;">
-                        <div class="input-row">
-                            <div class="input-group">
-                                <label>New Hour (0-23)</label>
-                                <input type="number" id="newHour" min="0" max="23" value="9">
-                            </div>
-                            <div class="input-group">
-                                <label>Minute (0/30)</label>
-                                <select id="newMinute">
-                                    <option value="0">00</option>
-                                    <option value="30">30</option>
-                                </select>
-                            </div>
+                <div class="group">
+                    <label for="meetingId">Meeting ID</label>
+                    <input type="text" id="meetingId" placeholder="mtg_001">
+
+                    <label for="actionType">Action</label>
+                    <select id="actionType">
+                        <option value="keep">keep</option>
+                        <option value="reschedule">reschedule</option>
+                        <option value="cancel">cancel</option>
+                    </select>
+
+                    <div id="timeInputs" class="row two hidden">
+                        <div>
+                            <label for="newHour">Hour</label>
+                            <input type="number" id="newHour" min="0" max="23" value="9">
+                        </div>
+                        <div>
+                            <label for="newMinute">Minute</label>
+                            <select id="newMinute">
+                                <option value="0">00</option>
+                                <option value="30">30</option>
+                            </select>
                         </div>
                     </div>
-                    <button class="btn btn-action" onclick="stepEnv()">Submit Action</button>
+
+                    <button class="btn btn-accent" id="stepBtn">Submit Action</button>
                 </div>
-                
-                <div class="stats-box">
-                    <div class="stat">
-                        <span class="label">Conflicts</span>
-                        <span class="val" id="conflictCount">0</span>
+
+                <div class="group">
+                    <div class="row two">
+                        <button class="btn btn-ghost" id="tasksBtn">List Tasks</button>
+                        <button class="btn btn-ghost" id="gradeBtn">Grade Current</button>
                     </div>
-                    <div class="stat">
-                        <span class="label">Reward</span>
-                        <span class="val" id="rewardScore">0.00</span>
-                    </div>
+                    <pre id="gradeOutput" class="codebox">No grading run yet.</pre>
                 </div>
             </aside>
 
-            <!-- Right Panel: Visualization -->
-            <main class="visualization-panel glass-panel">
-                <div id="toast" class="toast hidden"></div>
-                <div class="schedule-header">
-                    <h2>Live Schedule</h2>
-                    <span class="task-badge" id="currentTaskBadge">Task: easy</span>
+            <section class="panel schedule">
+                <div class="section-head">
+                    <h3>Schedule Stream</h3>
+                    <span id="scheduleMeta">0 meetings</span>
                 </div>
-                
-                <div class="calendar-grid" id="calendarGrid">
-                    <!-- Javascript will render grid here -->
+                <div id="scheduleList" class="list"></div>
+            </section>
+
+            <section class="panel intel">
+                <div class="section-head">
+                    <h3>Environment Intel</h3>
+                    <span class="mono" id="stateHint">live</span>
                 </div>
 
-                <div class="constraints-section">
-                    <h3>Active Constraints</h3>
-                    <ul id="constraintsList">
-                        <!-- JS injected -->
-                    </ul>
+                <h4>Conflicts</h4>
+                <ul id="conflictsList" class="chips"></ul>
+
+                <h4>Constraints</h4>
+                <ul id="constraintsList" class="chips"></ul>
+
+                <h4>Tasks</h4>
+                <ul id="tasksList" class="chips"></ul>
+
+                <h4>Event Feed</h4>
+                <ul id="eventFeed" class="feed"></ul>
+            </section>
+        </main>
+
+        <section class="info-grid reveal delay-2">
+            <article class="panel info-card">
+                <h3>Live Infographic</h3>
+                <div class="meter-row">
+                    <span>Meetings Processed</span>
+                    <strong id="infoTotalMeetings">0</strong>
                 </div>
-            </main>
-        </div>
+                <div class="meter"><span id="meetingsBar"></span></div>
+
+                <div class="meter-row">
+                    <span>Locked Ratio</span>
+                    <strong id="infoLockedMeetings">0%</strong>
+                </div>
+                <div class="meter"><span id="lockedBar"></span></div>
+
+                <div class="meter-row">
+                    <span>Conflict Pressure</span>
+                    <strong id="infoConflictRate">0%</strong>
+                </div>
+                <div class="meter"><span id="conflictBar"></span></div>
+            </article>
+
+            <article class="panel info-card">
+                <h3>How This Environment Works</h3>
+                <ul class="info-list">
+                    <li><strong>Step 1:</strong> Reset by selecting a difficulty level.</li>
+                    <li><strong>Step 2:</strong> Apply keep, cancel, or reschedule actions by meeting ID.</li>
+                    <li><strong>Step 3:</strong> Reduce overlap while respecting locked meetings and constraints.</li>
+                    <li><strong>Step 4:</strong> Track reward, conflicts, and grading for policy quality.</li>
+                </ul>
+            </article>
+
+            <article class="panel info-card">
+                <h3>Action Impact Guide</h3>
+                <ul class="info-list">
+                    <li><strong>keep:</strong> safest for valid existing slots.</li>
+                    <li><strong>cancel:</strong> fastest way to remove conflict-heavy meetings.</li>
+                    <li><strong>reschedule:</strong> best for preserving high-priority meetings.</li>
+                    <li><strong>grade:</strong> validates policy consistency across episodes.</li>
+                </ul>
+            </article>
+        </section>
     </div>
+
+    <div id="toast" class="toast hidden"></div>
 
     <script src="/static/script.js"></script>
 </body>

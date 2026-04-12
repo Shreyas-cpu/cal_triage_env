@@ -1,10 +1,98 @@
 spec_version: 1
 name: cal_triage_env
+version: "1.0.0"
+description: >
+  CalTriage OpenEnv — Calendar conflict resolution environment where an RL
+  agent acts as an AI executive assistant. The agent must reschedule, cancel,
+  or keep meetings to resolve all scheduling conflicts while respecting
+  hard constraints (locked meetings) and soft constraints (preferred times).
+  Built for Meta x PyTorch x Hugging Face OpenEnv Hackathon.
+
 type: space
 runtime: fastapi
-app: server.app:app
-port: 8000
-dependencies:
-  - uvicorn[standard]>=0.24.0
-  - requests>=2.31.0
-  - websockets>=12.0
+app: app:app
+port: 7860
+
+tags:
+  - openenv
+  - calendar
+  - scheduling
+  - reinforcement-learning
+  - conflict-resolution
+
+tasks:
+  - id: task_easy
+    name: Simple Conflict Resolution
+    difficulty: easy
+    num_meetings: 6
+    num_conflicts: 2
+    num_locked: 1
+    description: 6 meetings, 2 conflicts, 1 locked meeting
+
+  - id: task_medium
+    name: Multi-Overlap Schedule
+    difficulty: medium
+    num_meetings: 10
+    num_conflicts: 4
+    num_locked: 2
+    description: 10 meetings, 4 conflicts, soft constraints active
+
+  - id: task_hard
+    name: Dense Cascade Conflicts
+    difficulty: hard
+    num_meetings: 15
+    num_conflicts: 6
+    num_locked: 3
+    description: 15 meetings, 6 cascading conflicts, all constraint types
+
+action_space:
+  meeting_id:
+    type: string
+    description: ID of the meeting to act upon
+  action_type:
+    type: enum
+    values: [reschedule, cancel, keep]
+    description: What to do with the meeting
+  new_start_hour:
+    type: int
+    description: Required for reschedule — new hour (0-23)
+  new_start_minute:
+    type: int
+    values: [0, 30]
+    description: Required for reschedule — new minute (0 or 30)
+
+observation_space:
+  current_schedule:
+    type: list
+    description: All active meetings with time slots and priorities
+  active_conflicts:
+    type: list
+    description: Remaining unresolved overlapping pairs
+  constraints:
+    type: list
+    description: Hard and soft constraints to respect
+  num_conflicts:
+    type: int
+    description: Count of remaining conflicts
+  done:
+    type: bool
+  reward:
+    type: float
+    range: [0.0, 1.0]
+
+reward_structure:
+  per_step: true
+  components:
+    all_resolved_no_violations: 1.0
+    all_resolved_with_soft_violations: 0.5
+    hard_constraint_violation: 0.0
+    partial_progress: "0.0 to 0.3"
+    cancel_penalty: -0.02 per cancellation
+
+endpoints:
+  health: GET /health
+  reset: POST /reset
+  step: POST /step
+  state: GET /state
+  tasks: GET /tasks
+  grade: POST /grade/{task_id}

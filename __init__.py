@@ -15,7 +15,11 @@ Usage:
     ...     ))
 """
 
-from .client import CalTriageEnv
+try:
+    from .client import CalTriageEnv
+except Exception:
+    CalTriageEnv = None
+
 from .models import CalAction, CalObservation, CalState
 
 __all__ = ["CalTriageEnv", "CalAction", "CalObservation", "CalState"]

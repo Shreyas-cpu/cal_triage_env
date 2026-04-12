@@ -14,10 +14,6 @@ import random
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-# OpenEnv base classes
-from openenv.core.env_server.interfaces import Environment
-from openenv.core.env_server.types import Action, Observation, State
-
 # Our strictly-typed Pydantic models
 from models import (
     CalAction,
@@ -84,9 +80,30 @@ TASK_CONFIGS: Dict[str, Dict[str, Any]] = {
         "day_end": 18,            # 6 PM
     },
 }
+class StepResult:
+    def __init__(self, observation: CalObservation, reward: float, done: bool, info: Dict[str, Any]) -> None:
+        self.observation = observation
+        self.reward = reward
+        self.done = done
+        self.info = info
+
+    def __iter__(self):
+        yield self.observation
+        yield self.reward
+        yield self.done
+        yield self.info
+
+    def __len__(self) -> int:
+        return 4
+
+    def __getitem__(self, index: int):
+        return (self.observation, self.reward, self.done, self.info)[index]
+
+    def __getattr__(self, name: str):
+        return getattr(self.observation, name)
 
 
-class CalTriageEnvironment(Environment):
+class CalTriageEnvironment:
     """
     Calendar Triage RL Environment.
 
@@ -106,7 +123,6 @@ class CalTriageEnvironment(Environment):
     SUPPORTS_CONCURRENT_SESSIONS = True
 
     def __init__(self) -> None:
-        super().__init__()
         self._state: CalState = CalState(episode_id=str(uuid4()), step_count=0)
         self._schedule: List[Meeting] = []
         self._cancelled_ids: List[str] = []
@@ -181,10 +197,10 @@ class CalTriageEnvironment(Environment):
 
     def step(
         self,
-        action: Action,
+        action: CalAction,
         timeout_s: Optional[float] = None,
         **kwargs: Any,
-    ) -> CalObservation:
+    ) -> StepResult:
         """
         Apply the agent's action and return the updated observation.
 
@@ -202,16 +218,21 @@ class CalTriageEnvironment(Environment):
                 cal_action = CalAction(**action.model_dump(exclude={"metadata"}))
             except Exception as e:
                 self._state.step_count += 1
-                return self._make_error_obs(f"Invalid action format: {e}")
+                return StepResult(self._make_error_obs(f"Invalid action format: {e}"), 0.0, True, {})
 
         self._state.step_count += 1
 
         # ── Validate meeting exists ──────────────────────────────────────
         meeting = self._find_meeting(cal_action.meeting_id)
         if meeting is None:
-            return self._make_error_obs(
-                f"Meeting '{cal_action.meeting_id}' not found in schedule"
-            )
+                return StepResult(
+                    self._make_error_obs(
+                        f"Meeting '{cal_action.meeting_id}' not found in schedule"
+                    ),
+                    0.0,
+                    True,
+                    {},
+                )
 
         # ── Apply action ─────────────────────────────────────────────────
         if cal_action.action_type == "keep":
@@ -221,9 +242,14 @@ class CalTriageEnvironment(Environment):
             if meeting.is_locked:
                 self._hard_violated = True
                 self._state.hard_constraint_violations += 1
-                return self._make_terminal_obs(
-                    reward=0.0,
-                    error="HARD CONSTRAINT VIOLATED: Cannot cancel a locked meeting"
+                return StepResult(
+                    self._make_terminal_obs(
+                        reward=0.0,
+                        error="HARD CONSTRAINT VIOLATED: Cannot cancel a locked meeting"
+                    ),
+                    0.0,
+                    True,
+                    {},
                 )
             self._cancelled_ids.append(meeting.meeting_id)
             self._state.cancelled_meetings += 1
@@ -232,13 +258,23 @@ class CalTriageEnvironment(Environment):
             if meeting.is_locked:
                 self._hard_violated = True
                 self._state.hard_constraint_violations += 1
-                return self._make_terminal_obs(
-                    reward=0.0,
-                    error="HARD CONSTRAINT VIOLATED: Cannot reschedule a locked meeting"
+                return StepResult(
+                    self._make_terminal_obs(
+                        reward=0.0,
+                        error="HARD CONSTRAINT VIOLATED: Cannot reschedule a locked meeting"
+                    ),
+                    0.0,
+                    True,
+                    {},
                 )
             if cal_action.new_start_hour is None or cal_action.new_start_minute is None:
-                return self._make_error_obs(
-                    "Reschedule requires new_start_hour and new_start_minute"
+                return StepResult(
+                    self._make_error_obs(
+                        "Reschedule requires new_start_hour and new_start_minute"
+                    ),
+                    0.0,
+                    True,
+                    {},
                 )
             # Apply the reschedule
             self._reschedule_meeting(
@@ -247,8 +283,13 @@ class CalTriageEnvironment(Environment):
                 cal_action.new_start_minute,
             )
         else:
-            return self._make_error_obs(
-                f"Unknown action_type: '{cal_action.action_type}'"
+            return StepResult(
+                self._make_error_obs(
+                    f"Unknown action_type: '{cal_action.action_type}'"
+                ),
+                0.0,
+                True,
+                {},
             )
 
         # ── Recalculate state ────────────────────────────────────────────
@@ -271,15 +312,20 @@ class CalTriageEnvironment(Environment):
             done=done,
         )
 
-        return CalObservation(
-            current_schedule=self._active_meetings(),
-            active_conflicts=conflicts,
-            constraints=self._constraints,
-            num_conflicts=len(conflicts),
-            done=done,
-            reward=reward,
-            last_action_error=None,
-            task_name=self._task_name,
+        return StepResult(
+            CalObservation(
+                current_schedule=self._active_meetings(),
+                active_conflicts=conflicts,
+                constraints=self._constraints,
+                num_conflicts=len(conflicts),
+                done=done,
+                reward=reward,
+                last_action_error=None,
+                task_name=self._task_name,
+            ),
+            float(reward),
+            done,
+            {"step": self._state.step_count, "conflicts_remaining": len(conflicts)},
         )
 
     # ──────────────────────────────────────────────────────────────────────
@@ -290,6 +336,9 @@ class CalTriageEnvironment(Environment):
     def state(self) -> CalState:
         """Return current episode metadata."""
         return self._state
+
+    def get_state(self) -> Dict[str, Any]:
+        return self._state.model_dump()
 
     # ══════════════════════════════════════════════════════════════════════
     #  PRIVATE HELPERS
